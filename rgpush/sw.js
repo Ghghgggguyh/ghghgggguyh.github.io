@@ -14,7 +14,7 @@ self.addEventListener('push', function (event) {
         } catch (e) {}
         await self.registration.showNotification(d.title || 'RomGramm', {
             body: d.message || '',
-            tag: call ? 'rg-call' : (d.tag || undefined),
+            tag: call ? 'rg-call' : (d.tag || ('rg-msg-' + Date.now())),
             renotify: true,
             requireInteraction: call,
             vibrate: call ? [400, 200, 400, 200, 400] : [150],
