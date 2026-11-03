@@ -2895,7 +2895,7 @@
         const body = document.querySelector('#ntfyPanel .nt-body'); if (!body) return;
         const enable = document.getElementById('osEnableBtn');
         const box = document.createElement('div');
-        box.innerHTML = '<div class="nt-note" id="wpNote" style="margin:0 0 10px 0;"></div><button class="nt-btn alt" id="wpDiagBtn">Проверка без OneSignal (диагностика)</button><pre id="wpDiagOut" style="white-space:pre-wrap;word-break:break-word;font-size:13px;color:#8e9daf;margin:6px 0 16px 0;"></pre>';
+        box.innerHTML = '<div class="nt-note" id="wpNote" style="margin:0 0 10px 0;"></div><button class="nt-btn alt" id="wpDiagBtn">Проверка без OneSignal (диагностика)</button><button class="nt-btn alt" id="wpDelayBtn">Тест через 20 секунд (при закрытом Chrome)</button><button class="nt-btn alt" id="wpLogBtn">Журнал уведомлений</button><pre id="wpDiagOut" style="white-space:pre-wrap;word-break:break-word;font-size:13px;color:#8e9daf;margin:6px 0 16px 0;"></pre>';
         const anchor = document.getElementById('osEnableNote');
         if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(box, anchor.nextSibling); else body.insertBefore(box, body.firstChild);
         const note = function (t) { const n = document.getElementById('wpNote'); if (n) n.textContent = t; };
@@ -2907,6 +2907,26 @@
                 if (perm !== 'granted') { note('Разрешение не выдано. Нажмите кнопку ещё раз и выберите «Разрешить».'); return; }
                 return subscribeWP().then(function () { note('Готово! Уведомления включены (прямой способ, VPN не нужен).'); });
             }).catch(function (e) { const m = String(e && e.message ? e.message : e); note(/Content Security Policy/i.test(m) ? 'Хостинг этого сайта запрещает фоновые службы (политика безопасности), поэтому уведомления при закрытом приложении здесь не работают. Нужно перенести сайт на Cloudflare Pages или GitHub Pages.' : 'Не удалось подписаться: ' + m + '. Попробуйте открыть сайт в Google Chrome.'); });
+        });
+        document.getElementById('wpLogBtn').addEventListener('click', async function () {
+            const out = document.getElementById('wpDiagOut');
+            try {
+                const c = await caches.open('rg-log');
+                const r = await c.match(location.origin + '/rgpush/rg-log');
+                const arr = r ? await r.json() : [];
+                if (!arr.length) { out.textContent = 'Журнал пуст: пуши в телефон пока не доходили (или служебный файл ещё не обновился).'; return; }
+                out.textContent = 'Журнал (новые сверху):\n' + arr.map(function (x) { return new Date(x.t).toLocaleString() + '  ' + x.m; }).join('\n');
+            } catch (e) { out.textContent = 'Не удалось прочитать журнал: ' + (e && e.message ? e.message : e); }
+        });
+        document.getElementById('wpDelayBtn').addEventListener('click', async function () {
+            const out = document.getElementById('wpDiagOut');
+            let sub = null;
+            try { sub = await subscribeWP(); } catch (e) { out.textContent = 'Подписка: ОШИБКА: ' + (e && e.message ? e.message : e); return; }
+            const j = sub.toJSON();
+            try {
+                const r = await fetch(WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ webpush: { delay: 20, subs: [{ id: 'test', endpoint: j.endpoint, keys: j.keys }], payload: { title: 'RomGramm', message: 'Тест: уведомление при закрытом приложении', call: false, url: SITE_URL } } }) });
+                out.textContent = 'Запланировано (ответ: ' + (await r.text()).slice(0, 80) + '). СЕЙЧАС: полностью закройте Chrome (смахните его из списка приложений), заблокируйте экран и ждите 20 секунд.';
+            } catch (e) { out.textContent = 'Worker недоступен: ' + e.message; }
         });
         document.getElementById('wpDiagBtn').addEventListener('click', async function () {
             const out = document.getElementById('wpDiagOut'); const lines = []; const show = function () { out.textContent = lines.join('\n'); };
